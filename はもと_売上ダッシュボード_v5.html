@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>はもと水産 売上ダッシュボード</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  font-family: 'Noto Sans JP', sans-serif;
+  background: #f8f9fa;
+  color: #202124;
+  font-size: 14px;
+}
+
+/* ── Header ── */
+.header {
+  background: #fff;
+  border-bottom: 1px solid #dadce0;
+  padding: 20px 40px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 1px 4px rgba(60,64,67,0.08);
+}
+.header-logo {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.logo-bar {
+  display: flex;
+  gap: 4px;
+}
+.logo-bar span {
+  display: block;
+  width: 6px;
+  height: 28px;
+  border-radius: 3px;
+}
+.header-title { font-size: 20px; font-weight: 700; color: #202124; }
+.header-sub   { font-size: 12px; color: #5f6368; margin-top: 2px; }
+.header-kpis  { display: flex; gap: 28px; }
+.hkpi { text-align: right; }
+.hkpi-val   { font-size: 20px; font-weight: 700; color: #1a73e8; line-height: 1; }
+.hkpi-label { font-size: 11px; color: #5f6368; margin-top: 3px; }
+
+/* ── Tabs ── */
+.tabs {
+  background: #fff;
+  border-bottom: 2px solid #dadce0;
+  display: flex;
+  padding: 0 40px;
+  gap: 0;
+  overflow-x: auto;
+}
+.tab {
+  padding: 13px 22px;
+  font-size: 13px;
+  font-weight: 500;
+  font-family: 'Noto Sans JP', sans-serif;
+  color: #5f6368;
+  cursor: pointer;
+  border-bottom: 3px solid transparent;
+  margin-bottom: -2px;
+  white-space: nowrap;
+  transition: color .18s, border-color .18s;
+}
+.tab:hover  { color: #1a73e8; background: #f8f9fa; }
+.tab.active { color: #1a73e8; border-bottom-color: #1a73e8; }
+
+/* ── Main ── */
+.main    { padding: 28px 40px; }
+.section { }
+.section.hidden { display: none; }
+<!-- sections are visible by default; JS hides non-active ones after chart init -->
+
+/* ── KPI row ── */
+.kpi-row {
+  display: grid;
+  grid-template-columns: repeat(4,1fr);
+  gap: 14px;
+  margin-bottom: 24px;
+}
+.kpi {
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 10px;
+  padding: 18px 20px;
+  position: relative;
+  overflow: hidden;
+  box-shadow: 0 1px 3px rgba(60,64,67,0.07);
+}
+.kpi::before {
+  content:'';
+  position: absolute;
+  top:0; left:0; right:0;
+  height: 3px;
+  border-radius: 10px 10px 0 0;
+}
+.kpi.c-blue::before   { background:#1a73e8; }
+.kpi.c-green::before  { background:#34a853; }
+.kpi.c-yellow::before { background:#fbbc04; }
+.kpi.c-red::before    { background:#ea4335; }
+.kpi-label { font-size: 11px; font-weight: 500; color: #5f6368; margin-bottom: 7px; letter-spacing:.03em; }
+.kpi-val   { font-size: 22px; font-weight: 700; color: #202124; line-height:1; }
+.kpi-sub   { font-size: 11px; color: #5f6368; margin-top: 5px; }
+.badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  margin-top: 5px;
+}
+.badge-up   { background:#e6f4ea; color:#137333; }
+.badge-down { background:#fce8e6; color:#c5221f; }
+.badge-info { background:#e8f0fe; color:#1a73e8; }
+
+/* ── Card ── */
+.card {
+  background: #fff;
+  border: 1px solid #dadce0;
+  border-radius: 10px;
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: 0 1px 3px rgba(60,64,67,0.07);
+}
+.card-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:18px; }
+.card-title  { font-size: 14px; font-weight: 600; color: #202124; }
+.card-sub    { font-size: 12px; color: #5f6368; margin-top:3px; }
+.legend { display:flex; gap:14px; flex-wrap:wrap; }
+.legend-item { display:flex; align-items:center; gap:5px; font-size:12px; color:#5f6368; }
+.ldot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+.grid-2 { display:grid; grid-template-columns:1fr 1fr; gap:18px; margin-bottom:20px; }
+
+/* ── Table ── */
+.dt { width:100%; border-collapse:collapse; }
+.dt th {
+  font-size:11px; font-weight:600; color:#5f6368;
+  text-align:left; padding:8px 12px;
+  border-bottom:2px solid #dadce0;
+  background:#f8f9fa;
+  letter-spacing:.04em;
+}
+.dt td { padding:9px 12px; border-bottom:1px solid #f1f3f4; font-size:13px; color:#3c4043; }
+.dt tr:hover td { background:#f8f9fa; }
+.dt .n  { color:#5f6368; font-size:12px; width:28px; }
+.dt .v  { font-size:13px; color:#1a73e8; text-align:right; }
+.dt .vm { font-size:13px; color:#e8710a; text-align:right; }
+.dt .vs { font-size:11px; color:#5f6368; text-align:right; width:52px; }
+.bar-cell { width:110px; padding-right:6px; }
+.bar-bg   { background:#e8eaed; border-radius:2px; height:4px; overflow:hidden; }
+.bar-fill { height:4px; border-radius:2px; }
+
+@media(max-width:900px){
+  .header { flex-direction:column; align-items:flex-start; gap:14px; padding:16px 20px; }
+  .kpi-row { grid-template-columns:repeat(2,1fr); }
+  .grid-2  { grid-template-columns:1fr; }
+  .main { padding:18px 16px; }
+  .tabs { padding:0 16px; }
+}
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<div class="header">
+  <div class="header-logo">
+    <div class="logo-bar">
+      <span style="background:#1a73e8"></span>
+      <span style="background:#34a853"></span>
+      <span style="background:#fbbc04"></span>
+      <span style="background:#ea4335"></span>
+    </div>
+    <div>
+      <div class="header-title">はもと水産　売上ダッシュボード</div>
+      <div class="header-sub">集計期間：2024年1月〜2025年12月　｜　データ件数：約37,000件</div>
+    </div>
+  </div>
+  <div class="header-kpis">
+    <div class="hkpi"><div class="hkpi-val">¥306.4M</div><div class="hkpi-label">2年間 累計売上</div></div>
+    <div class="hkpi"><div class="hkpi-val">¥278.5M</div><div class="hkpi-label">2年間 累計粗利</div></div>
+    <div class="hkpi"><div class="hkpi-val">90.9%</div><div class="hkpi-label">平均粗利率</div></div>
+    <div class="hkpi"><div class="hkpi-val">+10.7%</div><div class="hkpi-label">2025/2024 売上成長率</div></div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" onclick="showTab('overview',this)">🔢 総仕入・総売上</div>
+  <div class="tab" onclick="showTab('profit',this)">💹 粗利・仕入分析</div>
+  <div class="tab" onclick="showTab('monthly',this)">📈 月別売上推移</div>
+  <div class="tab" onclick="showTab('product',this)">🐟 商品別分析</div>
+  <div class="tab" onclick="showTab('customer',this)">🏢 顧客別ランキング</div>
+</div>
+
+<div class="main">
+
+<!-- ===== TAB 1: 総仕入・総売上 ===== -->
+<div class="section active" id="tab-overview">
+  <div class="kpi-row">
+    <div class="kpi c-blue">
+      <div class="kpi-label">2年間 総売上（税抜）</div>
+      <div class="kpi-val">¥306.4M</div>
+      <div class="kpi-sub">2024〜2025年合計</div>
+    </div>
+    <div class="kpi c-yellow">
+      <div class="kpi-label">2年間 総仕入額（漁協）</div>
+      <div class="kpi-val">¥31.6M</div>
+      <div class="kpi-sub">売上に対し約10.3%</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kpi-label">2025年 売上</div>
+      <div class="kpi-val">¥161.0M</div>
+      <div class="badge badge-up">▲ 前年比 +10.7%</div>
+    </div>
+    <div class="kpi c-red">
+      <div class="kpi-label">2024年 売上</div>
+      <div class="kpi-val">¥145.4M</div>
+      <div class="kpi-sub">ベースライン年</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">年別 総売上 vs 総仕入</div><div class="card-sub">売上（棒:青）と仕入（棒:黄）の対比。仕入は漁協CSV分のみ</div></div>
+      <div class="legend">
+        <div class="legend-item"><div class="ldot" style="background:#1a73e8"></div>売上</div>
+        <div class="legend-item"><div class="ldot" style="background:#fbbc04"></div>仕入</div>
+      </div>
+    </div>
+    <canvas id="yearOverviewChart" height="75"></canvas>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">魚種別 仕入額 TOP12（漁協）</div><div class="card-sub">2024〜2025年累計</div></div></div>
+      <canvas id="spPurchaseChart" height="210"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">魚種別 売上額 TOP12（商品名推定）</div><div class="card-sub">2024〜2025年累計</div></div></div>
+      <canvas id="spSalesChart" height="210"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">魚種別 仕入額 vs 売上額 比較</div><div class="card-sub">共通魚種の対比（売上は商品名キーワード推定）</div></div>
+      <div class="legend">
+        <div class="legend-item"><div class="ldot" style="background:#1a73e8"></div>売上額</div>
+        <div class="legend-item"><div class="ldot" style="background:#fbbc04"></div>仕入額</div>
+      </div>
+    </div>
+    <canvas id="spCompareChart" height="80"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">魚種別 仕入・売上・倍率 一覧</div></div>
+    <table class="dt" id="speciesTable"></table>
+  </div>
+</div>
+
+<!-- ===== TAB 2: 粗利・仕入分析 ===== -->
+<div class="section" id="tab-profit">
+  <div class="kpi-row">
+    <div class="kpi c-blue">
+      <div class="kpi-label">2年間 累計粗利</div>
+      <div class="kpi-val">¥278.5M</div>
+      <div class="badge badge-up">▲ 前年比 +12.2%</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kpi-label">2025年 粗利率</div>
+      <div class="kpi-val">91.5%</div>
+      <div class="badge badge-up">▲ 前年比 +1.2pt</div>
+    </div>
+    <div class="kpi c-yellow">
+      <div class="kpi-label">2024年 粗利率</div>
+      <div class="kpi-val">90.3%</div>
+      <div class="kpi-sub">前年比+4.3pt改善</div>
+    </div>
+    <div class="kpi c-red">
+      <div class="kpi-label">粗利率 最高月</div>
+      <div class="kpi-val">95.3%</div>
+      <div class="kpi-sub">2025年12月</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">月別 売上・粗利・粗利率 推移（2024〜2025年）</div><div class="card-sub">棒：売上(青)・粗利(緑）　折れ線：粗利率(%)(黄)</div></div>
+      <div class="legend">
+        <div class="legend-item"><div class="ldot" style="background:rgba(26,115,232,0.5)"></div>売上</div>
+        <div class="legend-item"><div class="ldot" style="background:#34a853"></div>粗利</div>
+        <div class="legend-item"><div class="ldot" style="background:#fbbc04"></div>粗利率(%)</div>
+      </div>
+    </div>
+    <canvas id="profitComboChart" height="90"></canvas>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">顧客別 粗利額・粗利率 TOP15</div><div class="card-sub">うみから食堂(86.8%) / UMIKARA Select(72.8%) は他社より低い</div></div></div>
+      <canvas id="custProfitChart" height="220"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">仕入 魚種別コスト（漁協）</div><div class="card-sub">2024〜2025年 累計仕入金額</div></div></div>
+      <canvas id="speciesCostChart" height="220"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">顧客別 粗利分析</div><div class="card-sub">⚠️ うみから食堂・UMIKARA Selectの粗利率改善が全体利益向上の鍵</div></div>
+    </div>
+    <table class="dt" id="profitTable"></table>
+  </div>
+</div>
+
+<!-- ===== TAB 3: 月別売上推移 ===== -->
+<div class="section" id="tab-monthly">
+  <div class="kpi-row">
+    <div class="kpi c-blue">
+      <div class="kpi-label">2025年 年間売上</div>
+      <div class="kpi-val">¥161.0M</div>
+      <div class="badge badge-up">▲ 前年比 +10.7%</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kpi-label">2024年 年間売上</div>
+      <div class="kpi-val">¥145.4M</div>
+      <div class="kpi-sub">集計期間ベースライン</div>
+    </div>
+    <div class="kpi c-yellow">
+      <div class="kpi-label">2025年 最高月（7月）</div>
+      <div class="kpi-val">¥24.0M</div>
+      <div class="badge badge-up">▲ 前年同月比 +38%</div>
+    </div>
+    <div class="kpi c-red">
+      <div class="kpi-label">2025年 最低月（2月）</div>
+      <div class="kpi-val">¥5.9M</div>
+      <div class="kpi-sub">冬季閑散期</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">年度別 月次売上推移（2024 vs 2025）</div><div class="card-sub">税抜金額ベース</div></div>
+      <div class="legend">
+        <div class="legend-item"><div class="ldot" style="background:#1a73e8"></div>2025年</div>
+        <div class="legend-item"><div class="ldot" style="background:#34a853"></div>2024年</div>
+      </div>
+    </div>
+    <canvas id="monthlyCompareChart" height="90"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">月別売上 全期間 時系列（2024年1月〜2025年12月）</div><div class="card-sub">青：2025年　緑：2024年</div></div>
+    </div>
+    <canvas id="timelineChart" height="70"></canvas>
+  </div>
+
+  <div class="card">
+    <div class="card-header">
+      <div><div class="card-title">TOP5顧客 月次推移</div><div class="card-sub">2024〜2025年</div></div>
+    </div>
+    <canvas id="custLineChart" height="85"></canvas>
+  </div>
+</div>
+
+<!-- ===== TAB 4: 商品別 ===== -->
+<div class="section" id="tab-product">
+  <div class="kpi-row">
+    <div class="kpi c-blue">
+      <div class="kpi-label">1位 刺身用 イカ</div>
+      <div class="kpi-val">¥15.3M</div>
+      <div class="kpi-sub">全商品シェア 5.0%</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kpi-label">2位 大中たこ</div>
+      <div class="kpi-val">¥14.4M</div>
+      <div class="kpi-sub">全商品シェア 4.7%</div>
+    </div>
+    <div class="kpi c-yellow">
+      <div class="kpi-label">3位 桜干し さば</div>
+      <div class="kpi-val">¥13.0M</div>
+      <div class="kpi-sub">全商品シェア 4.3%</div>
+    </div>
+    <div class="kpi c-red">
+      <div class="kpi-label">TOP20 合計シェア</div>
+      <div class="kpi-val">57.6%</div>
+      <div class="kpi-sub">上位20商品で約6割</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">商品別売上 TOP20</div><div class="card-sub">2024〜2025年累計（税抜金額）</div></div></div>
+      <canvas id="prodBarChart" height="230"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">カテゴリ別 構成比</div><div class="card-sub">商品カテゴリ別</div></div></div>
+      <canvas id="prodDonut" height="230"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">商品別売上ランキング TOP20（2024〜2025年累計）</div></div>
+    <table class="dt" id="productTable"></table>
+  </div>
+</div>
+
+<!-- ===== TAB 5: 顧客別 ===== -->
+<div class="section" id="tab-customer">
+  <div class="kpi-row">
+    <div class="kpi c-blue">
+      <div class="kpi-label">TOP顧客 うみから食堂</div>
+      <div class="kpi-val">¥94.4M</div>
+      <div class="kpi-sub">全体シェア 30.8%</div>
+    </div>
+    <div class="kpi c-green">
+      <div class="kpi-label">2位 UMIKARA Select</div>
+      <div class="kpi-val">¥45.3M</div>
+      <div class="kpi-sub">全体シェア 14.8%</div>
+    </div>
+    <div class="kpi c-yellow">
+      <div class="kpi-label">上位2社 集中度</div>
+      <div class="kpi-val">45.6%</div>
+      <div class="kpi-sub">TOP2社で約半分</div>
+    </div>
+    <div class="kpi c-red">
+      <div class="kpi-label">上位5社 集中度</div>
+      <div class="kpi-val">62.4%</div>
+      <div class="kpi-sub">TOP5社での構成比</div>
+    </div>
+  </div>
+
+  <div class="grid-2">
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">顧客別売上 TOP20</div><div class="card-sub">2024〜2025年累計</div></div></div>
+      <canvas id="custBarChart" height="230"></canvas>
+    </div>
+    <div class="card">
+      <div class="card-header"><div><div class="card-title">TOP5顧客 月次推移</div><div class="card-sub">2024〜2025年</div></div></div>
+      <canvas id="custLine2Chart" height="230"></canvas>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-header"><div class="card-title">顧客別売上ランキング TOP20（2024〜2025年累計）</div></div>
+    <table class="dt" id="customerTable"></table>
+  </div>
+</div>
+
+</div><!-- /main -->
+
+<script>
+const MONTHS_JP = ['1月','2月','3月','4月','5月','6月','7月','8月','9月','10月','11月','12月'];
+const ALL_MONTHS = ["2024-01","2024-02","2024-03","2024-04","2024-05","2024-06","2024-07","2024-08","2024-09","2024-10","2024-11","2024-12","2025-01","2025-02","2025-03","2025-04","2025-05","2025-06","2025-07","2025-08","2025-09","2025-10","2025-11","2025-12"];
+const YEAR_SALES    = {"2024":145387149,"2025":160983013};
+const YEAR_PURCHASE = {"2024":18095003,"2025":13538939};
+const YEAR_GROSS    = {"2024":131281698,"2025":147261349};
+const MONTHLY_SALES    = {"2024-01":7234611,"2024-02":7161537,"2024-03":9699027,"2024-04":11393790,"2024-05":13615971,"2024-06":12481953,"2024-07":17348235,"2024-08":19198488,"2024-09":11852475,"2024-10":11634405,"2024-11":13449996,"2024-12":10316661,"2025-01":8111241,"2025-02":5856888,"2025-03":8979531,"2025-04":9313911,"2025-05":12187902,"2025-06":16309377,"2025-07":23979762,"2025-08":21844368,"2025-09":14025105,"2025-10":11335419,"2025-11":11485026,"2025-12":17554483};
+const MONTHLY_GROSS    = {"2024-01":6365157,"2024-02":6443295,"2024-03":8336247,"2024-04":10195902,"2024-05":12484797,"2024-06":11766612,"2024-07":16234725,"2024-08":17186487,"2024-09":10773864,"2024-10":10445253,"2024-11":12306600,"2024-12":8742759,"2025-01":7562997,"2025-02":5336943,"2025-03":8162655,"2025-04":7983393,"2025-05":9863274,"2025-06":15155778,"2025-07":22486749,"2025-08":19637178,"2025-09":13187241,"2025-10":10450155,"2025-11":10704924,"2025-12":16730062};
+const MONTHLY_PURCHASE = {"2024-01":206305,"2024-02":102364,"2024-03":100860,"2024-04":794481,"2024-05":1490829,"2024-06":2294672,"2024-07":1880653,"2024-08":1546300,"2024-09":1126380,"2024-10":1648160,"2024-11":1723386,"2024-12":5180613,"2025-01":1986298,"2025-02":691563,"2025-03":1041080,"2025-04":1348338,"2025-05":1839416,"2025-06":1744416,"2025-07":2225637,"2025-08":534986,"2025-09":429075,"2025-10":778554,"2025-11":801448,"2025-12":118128};
+const GROSS_RATE = {"2024-01":88.0,"2024-02":90.0,"2024-03":85.9,"2024-04":89.5,"2024-05":91.7,"2024-06":94.3,"2024-07":93.6,"2024-08":89.5,"2024-09":90.9,"2024-10":89.8,"2024-11":91.5,"2024-12":84.7,"2025-01":93.2,"2025-02":91.1,"2025-03":90.9,"2025-04":85.7,"2025-05":80.9,"2025-06":92.9,"2025-07":93.8,"2025-08":89.9,"2025-09":94.0,"2025-10":92.2,"2025-11":93.2,"2025-12":95.3};
+const YEAR_DATA = {"2024":[7234611,7161537,9699027,11393790,13615971,12481953,17348235,19198488,11852475,11634405,13449996,10316661],"2025":[8111241,5856888,8979531,9313911,12187902,16309377,23979762,21844368,14025105,11335419,11485026,17554483]};
+const CUST_NAMES  = ["株式会社うみから うみから食堂","UMIKARA Select","小浜海産物株式会社","サニーマート株式会社 高浜店","株式会社サンワードアンドカンパニー東京支店","株式会社 Hanbit","高浜町教育委員会","福井市観光物産館 福福館","サニーマート株式会社 南店","株式会社 レストラン南条","株式会社 プラザハウス","若狭湾観光株式会社","道の駅 若狭おばま","認定こども園 cocokara","高浜町役場 こども未来課","サニーマート株式会社 (委託)","高浜町学校給食センター","株式会社 GHIBLI","fuu Resort","本郷こども園"];
+const CUST_VALUES = [94426773,45334966,29426061,12608565,12167640,9160233,8632725,6559590,5863995,4841775,4639968,4535484,4512831,3556995,3550980,3368550,3310140,2522565,2382813,2206545];
+const CUST_GROSS  = [81958635,32993587,29426061,12596145,12167640,9160233,8535825,6559590,5809995,4678983,4639968,4535484,4512831,3527160,3548805,3368550,3249240,2522565,2380149,2202045];
+const CUST_RATE   = [86.8,72.8,100.0,99.9,100.0,100.0,98.9,100.0,99.1,96.6,100.0,100.0,100.0,99.2,99.9,100.0,98.2,100.0,99.9,99.8];
+const TOP5 = ["株式会社うみから うみから食堂","UMIKARA Select","小浜海産物株式会社","サニーマート株式会社 高浜店","株式会社サンワードアンドカンパニー東京支店"];
+const TOP5_SHORT = ["うみから食堂","UMIKARA Select","小浜海産物","ｻﾆｰﾏｰﾄ高浜","ｻﾝﾜｰﾄﾞ東京"];
+const TOP5_MONTHLY = {
+  "株式会社うみから うみから食堂":[1436943,1912890,3098637,4604667,5598135,3193419,5224941,9273252,4650219,4726611,4329267,2791788,1886733,1405743,2974176,3143946,4483131,2684211,5884929,8112972,4194714,3461526,2618808,2735115],
+  "UMIKARA Select":[1017408,1089486,1556805,1307739,2120742,1220790,1949790,4056447,1688526,1366752,1166421,1901877,769050,577239,1079472,1408785,2701551,2059086,3319431,4661223,2430966,1811574,2178687,1895119],
+  "小浜海産物株式会社":[266070,551250,427530,726390,498330,1120350,1133370,449400,329670,1575858,256371,443154,746688,710280,523050,776298,757593,6223503,7964571,1799679,447513,702615,813408,183120],
+  "サニーマート株式会社 高浜店":[702831,451098,407361,755532,1207692,326982,953988,969117,746928,717399,683583,971121,355470,267438,482070,448047,268425,239760,356400,460200,178200,101250,309903,247770],
+  "株式会社サンワードアンドカンパニー東京支店":[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1710000,3135000,570000,636420,6116220]
+};
+const PROD_NAMES  = ["刺身用 イカ","大中たこ","桜干し さば","漬け丼 真鯛(業務用70g)","漬け丼 ふくいサーモン(業務用70g)","委託商品 売上額","漬け丼 若狭まはた(業務用70g)","桜干し あじ","灰干し 甘鯛","漬け丼 ミックス3〜4種(業務用70g)","若狭マハタフィーレ","若狭まはたフィーレ(飛鳥II特別価格)","漬け丼 若狭真鯛","鯛ラーメン出汁","ブリ(養殖)フィーレ","冷凍穴子フィーレ 大(食堂)","刺身用 真鯛柵","漬け丼 若狭まはた","漬け丼 ふくいサーモン","たかはまんじゅう"];
+const PROD_VALUES = [15324528,14381022,13042215,9312150,9193827,8954142,6372090,6147708,5529759,5500800,5415000,5080800,4586697,4399875,4359960,4263108,4225944,4110828,3735147,3723012];
+const SP_PURCHASE_NAMES = ["タコ","カニ","サーモン","グジ","タイ","イカ","マハタ","アジ","アナゴ","エビ","加工品","ブリ"];
+const SP_PURCHASE_VALS  = [4288109,3381700,2847360,1967483,1963889,1962220,1882560,1529916,1320000,1245050,1151950,1066010];
+const SP_SALES_NAMES    = ["その他","タイ","サバ","マハタ","イカ","サーモン","タコ","アジ","ブリ","サワラ","カレイ","アナゴ"];
+const SP_SALES_VALS     = [97859599,47272200,33138413,24029448,23851301,17779350,16752768,10318770,7625196,7574435,5901429,5684958];
+const COMPARE_SP        = ["タイ","サーモン","イカ","マハタ","タコ","ブリ","アジ","サワラ","カレイ","アナゴ"];
+const COMPARE_PURCHASE  = [1963889,2847360,1962220,1882560,4288109,1066010,1529916,719634,531628,1320000];
+const COMPARE_SALES     = [47272200,17779350,23851301,24029448,16752768,7625196,10318770,7574435,5901429,5684958];
+const G_COLORS = ['#1a73e8','#34a853','#fbbc04','#ea4335','#9334e6','#00acc1','#e8710a','#0f9d58','#c5221f','#1967d2','#188038','#e37400'];
+const FONT = "'Noto Sans JP', sans-serif";
+
+function fmt(v) { return '\u00a5' + (v/1000000).toFixed(1) + 'M'; }
+function fmtFull(v) { return '\u00a5' + Math.round(v).toLocaleString(); }
+
+function tooltip(extraCallbacks) {
+  return {
+    backgroundColor: '#fff',
+    borderColor: '#dadce0',
+    borderWidth: 1,
+    titleColor: '#202124',
+    bodyColor: '#5f6368',
+    padding: 11,
+    titleFont: {family: FONT, size: 12},
+    bodyFont: {family: FONT, size: 12},
+    callbacks: extraCallbacks || {}
+  };
+}
+function scaleFmt() {
+  return {
+    x: {
+      grid: {color: 'rgba(218,220,224,0.5)'},
+      ticks: {color: '#5f6368', font: {size: 11, family: FONT}}
+    },
+    y: {
+      grid: {color: 'rgba(218,220,224,0.5)'},
+      ticks: {color: '#5f6368', font: {size: 11, family: FONT}, callback: function(v) { return fmt(v); }}
+    }
+  };
+}
+function legendStyle() {
+  return {display: true, position: 'top', labels: {color: '#5f6368', usePointStyle: true, font: {size: 12, family: FONT}, padding: 16}};
+}
+
+// ========== CHART: 年別売上 vs 仕入 ==========
+new Chart(document.getElementById('yearOverviewChart'), {
+  type: 'bar',
+  data: {
+    labels: ['2024年', '2025年'],
+    datasets: [
+      {label: '総売上', data: [YEAR_SALES['2024'], YEAR_SALES['2025']], backgroundColor: 'rgba(26,115,232,0.75)', borderRadius: 6, borderSkipped: false},
+      {label: '総仕入', data: [YEAR_PURCHASE['2024'], YEAR_PURCHASE['2025']], backgroundColor: 'rgba(251,188,4,0.85)', borderRadius: 6, borderSkipped: false}
+    ]
+  },
+  options: {
+    plugins: {
+      legend: legendStyle(),
+      tooltip: tooltip({label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw); }})
+    },
+    scales: scaleFmt()
+  }
+});
+
+// ========== CHART: 魚種別仕入 ==========
+new Chart(document.getElementById('spPurchaseChart'), {
+  type: 'bar',
+  data: {
+    labels: SP_PURCHASE_NAMES,
+    datasets: [{data: SP_PURCHASE_VALS, backgroundColor: G_COLORS, borderRadius: 4, borderSkipped: false}]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: {
+      legend: {display: false},
+      tooltip: tooltip({label: function(ctx) { return ' ' + fmtFull(ctx.raw); }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 10, family: FONT}, callback: function(v) { return '\u00a5' + (v/1000).toFixed(0) + 'K'; }}},
+      y: {grid: {display: false}, ticks: {color: '#3c4043', font: {size: 11, family: FONT}}}
+    }
+  }
+});
+
+// ========== CHART: 魚種別売上 ==========
+new Chart(document.getElementById('spSalesChart'), {
+  type: 'bar',
+  data: {
+    labels: SP_SALES_NAMES,
+    datasets: [{data: SP_SALES_VALS, backgroundColor: G_COLORS, borderRadius: 4, borderSkipped: false}]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: {
+      legend: {display: false},
+      tooltip: tooltip({label: function(ctx) { return ' ' + fmtFull(ctx.raw); }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 10, family: FONT}, callback: function(v) { return fmt(v); }}},
+      y: {grid: {display: false}, ticks: {color: '#3c4043', font: {size: 11, family: FONT}}}
+    }
+  }
+});
+
+// ========== CHART: 魚種比較 ==========
+new Chart(document.getElementById('spCompareChart'), {
+  type: 'bar',
+  data: {
+    labels: COMPARE_SP,
+    datasets: [
+      {label: '売上額', data: COMPARE_SALES, backgroundColor: 'rgba(26,115,232,0.7)', borderRadius: 4, borderSkipped: false},
+      {label: '仕入額', data: COMPARE_PURCHASE, backgroundColor: 'rgba(251,188,4,0.85)', borderRadius: 4, borderSkipped: false}
+    ]
+  },
+  options: {
+    plugins: {
+      legend: legendStyle(),
+      tooltip: tooltip({label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw); }})
+    },
+    scales: scaleFmt()
+  }
+});
+
+// ========== CHART: 粗利コンボ ==========
+new Chart(document.getElementById('profitComboChart'), {
+  type: 'bar',
+  data: {
+    labels: ALL_MONTHS.map(function(m) { return m.substring(2); }),
+    datasets: [
+      {type: 'bar', label: '売上', data: ALL_MONTHS.map(function(m) { return MONTHLY_SALES[m] || 0; }), backgroundColor: 'rgba(26,115,232,0.25)', borderRadius: 3, yAxisID: 'y'},
+      {type: 'bar', label: '粗利', data: ALL_MONTHS.map(function(m) { return MONTHLY_GROSS[m] || 0; }), backgroundColor: 'rgba(52,168,83,0.6)', borderRadius: 3, yAxisID: 'y'},
+      {type: 'line', label: '粗利率(%)', data: ALL_MONTHS.map(function(m) { return GROSS_RATE[m] || 0; }), borderColor: '#fbbc04', backgroundColor: 'transparent', tension: 0.3, borderWidth: 2, pointRadius: 3, pointBackgroundColor: '#fbbc04', yAxisID: 'y2'}
+    ]
+  },
+  options: {
+    plugins: {
+      legend: legendStyle(),
+      tooltip: tooltip({label: function(ctx) {
+        if (ctx.dataset.label === '粗利率(%)') return ' 粗利率: ' + ctx.raw + '%';
+        return ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw);
+      }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 10, family: FONT}}},
+      y: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 11, family: FONT}, callback: function(v) { return fmt(v); }}, position: 'left'},
+      y2: {grid: {display: false}, ticks: {color: '#f9ab00', font: {size: 11, family: FONT}, callback: function(v) { return v + '%'; }}, position: 'right', min: 75, max: 100}
+    }
+  }
+});
+
+// ========== CHART: 顧客粗利 ==========
+new Chart(document.getElementById('custProfitChart'), {
+  type: 'bar',
+  data: {
+    labels: CUST_NAMES.slice(0,15).map(function(n) { return n.replace('株式会社','(株)').substring(0,14); }),
+    datasets: [
+      {type: 'bar', label: '粗利額', data: CUST_GROSS.slice(0,15), backgroundColor: CUST_RATE.slice(0,15).map(function(r) { return r < 85 ? 'rgba(234,67,53,0.65)' : r < 95 ? 'rgba(26,115,232,0.6)' : 'rgba(52,168,83,0.6)'; }), borderRadius: 3, yAxisID: 'y'},
+      {type: 'line', label: '粗利率(%)', data: CUST_RATE.slice(0,15), borderColor: '#fbbc04', backgroundColor: 'transparent', tension: 0.3, borderWidth: 2, pointRadius: 4, pointBackgroundColor: '#fbbc04', yAxisID: 'y2'}
+    ]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: {
+      legend: legendStyle(),
+      tooltip: tooltip({label: function(ctx) {
+        if (ctx.dataset.label === '粗利率(%)') return ' 粗利率: ' + ctx.raw + '%';
+        return ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw);
+      }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 10, family: FONT}, callback: function(v) { return fmt(v); }}},
+      y: {grid: {display: false}, ticks: {color: '#3c4043', font: {size: 10, family: FONT}}},
+      y2: {display: false}
+    }
+  }
+});
+
+// ========== CHART: 魚種仕入コスト ==========
+new Chart(document.getElementById('speciesCostChart'), {
+  type: 'bar',
+  data: {
+    labels: SP_PURCHASE_NAMES,
+    datasets: [{
+      data: SP_PURCHASE_VALS,
+      backgroundColor: SP_PURCHASE_VALS.map(function(v, i) { return i < 3 ? 'rgba(251,188,4,0.85)' : i < 6 ? 'rgba(251,188,4,0.55)' : 'rgba(154,160,166,0.5)'; }),
+      borderRadius: 4, borderSkipped: false
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: {
+      legend: {display: false},
+      tooltip: tooltip({label: function(ctx) { return ' ' + fmtFull(ctx.raw); }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 10, family: FONT}, callback: function(v) { return '\u00a5' + (v/1000).toFixed(0) + 'K'; }}},
+      y: {grid: {display: false}, ticks: {color: '#3c4043', font: {size: 11, family: FONT}}}
+    }
+  }
+});
+
+// ========== CHART: 月別比較 ==========
+new Chart(document.getElementById('monthlyCompareChart'), {
+  type: 'line',
+  data: {
+    labels: MONTHS_JP,
+    datasets: [
+      {label: '2025年', data: YEAR_DATA['2025'], borderColor: '#1a73e8', backgroundColor: 'rgba(26,115,232,0.08)', tension: 0.4, borderWidth: 2.5, pointRadius: 3, pointBackgroundColor: '#1a73e8', fill: true},
+      {label: '2024年', data: YEAR_DATA['2024'], borderColor: '#34a853', backgroundColor: 'rgba(52,168,83,0.05)', tension: 0.4, borderWidth: 2, pointRadius: 2, pointBackgroundColor: '#34a853', fill: true}
+    ]
+  },
+  options: {
+    plugins: {
+      legend: legendStyle(),
+      tooltip: tooltip({label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw); }})
+    },
+    scales: scaleFmt()
+  }
+});
+
+// ========== CHART: タイムライン ==========
+new Chart(document.getElementById('timelineChart'), {
+  type: 'bar',
+  data: {
+    labels: ALL_MONTHS,
+    datasets: [{
+      data: ALL_MONTHS.map(function(m) { return MONTHLY_SALES[m] || 0; }),
+      backgroundColor: ALL_MONTHS.map(function(m) { return m.startsWith('2025') ? 'rgba(26,115,232,0.7)' : 'rgba(52,168,83,0.55)'; }),
+      borderRadius: 3, borderSkipped: false
+    }]
+  },
+  options: {
+    plugins: {
+      legend: {display: false},
+      tooltip: tooltip({title: function(ctx) { return ctx[0].label; }, label: function(ctx) { return ' ' + fmtFull(ctx.raw); }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 9, family: FONT}}},
+      y: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 11, family: FONT}, callback: function(v) { return fmt(v); }}}
+    }
+  }
+});
+
+// ========== CHART: TOP5ライン（月別タブ） ==========
+var c5col = ['#1a73e8','#34a853','#fbbc04','#ea4335','#9334e6'];
+new Chart(document.getElementById('custLineChart'), {
+  type: 'line',
+  data: {
+    labels: ALL_MONTHS.map(function(m) { return m.substring(2); }),
+    datasets: TOP5.map(function(name, i) {
+      return {label: TOP5_SHORT[i], data: TOP5_MONTHLY[name], borderColor: c5col[i], backgroundColor: 'transparent', tension: 0.4, borderWidth: 1.8, pointRadius: 0};
+    })
+  },
+  options: {
+    plugins: {
+      legend: legendStyle(),
+      tooltip: tooltip({label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw); }})
+    },
+    scales: scaleFmt()
+  }
+});
+
+// ========== CHART: 商品棒 ==========
+new Chart(document.getElementById('prodBarChart'), {
+  type: 'bar',
+  data: {
+    labels: PROD_NAMES.map(function(n) { return n.substring(0, 16); }),
+    datasets: [{
+      data: PROD_VALUES,
+      backgroundColor: PROD_VALUES.map(function(v, i) { return i < 3 ? '#1a73e8' : i < 7 ? 'rgba(26,115,232,0.55)' : 'rgba(154,160,166,0.5)'; }),
+      borderRadius: 4, borderSkipped: false
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: {
+      legend: {display: false},
+      tooltip: tooltip({label: function(ctx) { return ' ' + fmtFull(ctx.raw); }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 10, family: FONT}, callback: function(v) { return fmt(v); }}},
+      y: {grid: {display: false}, ticks: {color: '#3c4043', font: {size: 10, family: FONT}}}
+    }
+  }
+});
+
+// ========== CHART: ドーナツ ==========
+var catData = [
+  {label: '漬け丼(業務用)', val: 9312150+9193827+6372090+5500800},
+  {label: '刺身・鮮魚', val: 15324528+4225944},
+  {label: '桜干し・干物', val: 13042215+6147708},
+  {label: 'タコ', val: 14381022},
+  {label: '委託商品', val: 8954142},
+  {label: 'マハタ', val: 5415000+5080800+4110828},
+  {label: '灰干し', val: 5529759},
+  {label: 'その他', val: 35000000}
+];
+new Chart(document.getElementById('prodDonut'), {
+  type: 'doughnut',
+  data: {
+    labels: catData.map(function(c) { return c.label; }),
+    datasets: [{data: catData.map(function(c) { return c.val; }), backgroundColor: G_COLORS, borderWidth: 0, hoverOffset: 8}]
+  },
+  options: {
+    plugins: {
+      legend: {display: true, position: 'right', labels: {color: '#5f6368', font: {size: 11, family: FONT}, padding: 12, usePointStyle: true}},
+      tooltip: tooltip({label: function(ctx) { return ' ' + ctx.label + ': ' + fmt(ctx.raw); }})
+    },
+    cutout: '65%'
+  }
+});
+
+// ========== CHART: 顧客棒 ==========
+new Chart(document.getElementById('custBarChart'), {
+  type: 'bar',
+  data: {
+    labels: CUST_NAMES.map(function(n) { return n.replace('株式会社','(株)').substring(0,14); }),
+    datasets: [{
+      data: CUST_VALUES,
+      backgroundColor: CUST_VALUES.map(function(v, i) { return i === 0 ? '#1a73e8' : i === 1 ? '#34a853' : i < 5 ? 'rgba(52,168,83,0.55)' : 'rgba(154,160,166,0.45)'; }),
+      borderRadius: 4, borderSkipped: false
+    }]
+  },
+  options: {
+    indexAxis: 'y',
+    plugins: {
+      legend: {display: false},
+      tooltip: tooltip({label: function(ctx) { return ' ' + fmtFull(ctx.raw); }})
+    },
+    scales: {
+      x: {grid: {color: 'rgba(218,220,224,0.5)'}, ticks: {color: '#5f6368', font: {size: 10, family: FONT}, callback: function(v) { return fmt(v); }}},
+      y: {grid: {display: false}, ticks: {color: '#3c4043', font: {size: 10, family: FONT}}}
+    }
+  }
+});
+
+// ========== CHART: TOP5ライン（顧客タブ） ==========
+new Chart(document.getElementById('custLine2Chart'), {
+  type: 'line',
+  data: {
+    labels: ALL_MONTHS.map(function(m) { return m.substring(2); }),
+    datasets: TOP5.map(function(name, i) {
+      return {label: TOP5_SHORT[i], data: TOP5_MONTHLY[name], borderColor: c5col[i], backgroundColor: 'transparent', tension: 0.4, borderWidth: 1.8, pointRadius: 0};
+    })
+  },
+  options: {
+    plugins: {
+      legend: legendStyle(),
+      tooltip: tooltip({label: function(ctx) { return ' ' + ctx.dataset.label + ': ' + fmtFull(ctx.raw); }})
+    },
+    scales: scaleFmt()
+  }
+});
+
+// ========== TABLES ==========
+function buildRankTable(id, names, values, color) {
+  color = color || '#1a73e8';
+  var total = values.reduce(function(a, b) { return a + b; }, 0);
+  var maxV = values[0];
+  var t = document.getElementById(id);
+  t.innerHTML = '<tr><th>#</th><th>名称</th><th class="bar-cell"></th><th style="text-align:right">累計売上</th><th style="text-align:right">構成比</th></tr>';
+  names.forEach(function(name, i) {
+    var v = values[i];
+    var pct = (v / total * 100).toFixed(1);
+    var w = (v / maxV * 100).toFixed(1);
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td class="n">' + (i+1) + '</td><td style="color:#202124">' + name + '</td><td class="bar-cell"><div class="bar-bg"><div class="bar-fill" style="width:' + w + '%;background:' + color + '"></div></div></td><td class="v">' + fmtFull(v) + '</td><td class="vs">' + pct + '%</td>';
+    t.appendChild(tr);
+  });
+}
+buildRankTable('productTable',  PROD_NAMES,  PROD_VALUES,  '#1a73e8');
+buildRankTable('customerTable', CUST_NAMES,  CUST_VALUES,  '#34a853');
+
+var pt = document.getElementById('profitTable');
+pt.innerHTML = '<tr><th>#</th><th>顧客名</th><th style="text-align:right">売上</th><th style="text-align:right">粗利額</th><th style="text-align:right">粗利率</th><th style="text-align:right">評価</th></tr>';
+CUST_NAMES.slice(0, 15).forEach(function(name, i) {
+  var badge = CUST_RATE[i] < 85 ? '<span class="badge badge-down">要確認</span>' : CUST_RATE[i] >= 99 ? '<span class="badge badge-up">優良</span>' : '<span class="badge badge-info">良好</span>';
+  var rateColor = CUST_RATE[i] < 85 ? '#ea4335' : CUST_RATE[i] >= 99 ? '#34a853' : '#1a73e8';
+  var tr = document.createElement('tr');
+  tr.innerHTML = '<td class="n">' + (i+1) + '</td><td style="color:#202124">' + name + '</td><td style="text-align:right;font-size:13px;color:#5f6368">' + fmtFull(CUST_VALUES[i]) + '</td><td class="v">' + fmtFull(CUST_GROSS[i]) + '</td><td style="text-align:right;font-size:13px;font-weight:600;color:' + rateColor + '">' + CUST_RATE[i] + '%</td><td style="text-align:right">' + badge + '</td>';
+  pt.appendChild(tr);
+});
+
+var st = document.getElementById('speciesTable');
+st.innerHTML = '<tr><th>#</th><th>魚種</th><th style="text-align:right">売上額（推定）</th><th style="text-align:right">仕入額（漁協）</th><th style="text-align:right">売上/仕入 倍率</th><th style="text-align:right">差額</th></tr>';
+COMPARE_SP.map(function(sp, i) { return {sp: sp, s: COMPARE_SALES[i], p: COMPARE_PURCHASE[i]}; })
+  .sort(function(a, b) { return b.s - a.s; })
+  .forEach(function(d, i) {
+    var ratio = (d.s / d.p).toFixed(1);
+    var tr = document.createElement('tr');
+    tr.innerHTML = '<td class="n">' + (i+1) + '</td><td style="color:#202124;font-weight:500">' + d.sp + '</td><td class="v">' + fmtFull(d.s) + '</td><td class="vm">' + fmtFull(d.p) + '</td><td style="text-align:right;font-size:13px;font-weight:600;color:' + (ratio > 30 ? '#34a853' : '#1a73e8') + '">' + ratio + 'x</td><td style="text-align:right;font-size:13px;color:#34a853">' + fmtFull(d.s - d.p) + '</td>';
+    st.appendChild(tr);
+  });
+
+// ========== TABS ==========
+function showTab(id, elem) {
+  document.querySelectorAll('.section').forEach(function(s) { s.classList.add('hidden'); });
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.remove('active'); });
+  document.getElementById('tab-' + id).classList.remove('hidden');
+  if (elem) elem.classList.add('active');
+  setTimeout(function() {
+    Object.values(Chart.instances).forEach(function(c) { c.resize(); });
+  }, 30);
+}
+// チャート生成後、初期タブ以外を非表示
+document.querySelectorAll('.section:not(#tab-overview)').forEach(function(s) { s.classList.add('hidden'); });
+</script>
+</body>
+</html>
